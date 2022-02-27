@@ -5,26 +5,30 @@ Created on Fri Jan  8 20:33:42 2021
 @author: Jiwoo Ahn
 """
 
-# Import relevant libraries
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output , State
-import plotly.express as px
-import plotly.graph_objects as go
+from dash.dependencies import Input, Output, State
 
-import pandas as pd
-from bs4 import BeautifulSoup
+# Import relevant libraries
 import time
+import urllib
 import requests
-from requests import get
-import urllib.parse
+from bs4 import BeautifulSoup
+import pandas as pd
+import plotly.express as px
 
 # Initiate the app
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
-app.title = 'Property map'
+app.title = 'AusCovidDash'
+
+colors = {
+    'background': '#000000',
+    'text': '#5d76a9',
+    'label': '#f5b112'
+}
 
 class property_scraper():
     def __init__(self, state, suburb, property_type, beds, imax):
@@ -73,7 +77,7 @@ class property_scraper():
         print(url)
         
         time.sleep(3)
-        response = get(url, headers=headers)
+        response = requests.get(url, headers=headers)
 
         # parse html page from reponse to text using bs4 library
         html_soup = BeautifulSoup(response.text, 'html.parser')
@@ -238,8 +242,7 @@ def plotInitial():
                             color_continuous_scale=px.colors.sequential.Plasma, size_max=15, zoom=10)
 
     return fig
-
-
+    
 # DASH APP CONFIGURATION
 aus_states = ['QLD','NSW','VIC','WA','SA', 'TAS', 'ACT']
 props = ['House','Townhouse','Unit']
@@ -318,7 +321,6 @@ def update_graph(n_clicks, state, suburb, property_type, beds, numb):
     #     print(n_clicks)
     #     fig = plot(state,suburb,property_type,beds, int(numb*0.1))
     return fig
-                             
 
 if __name__ == '__main__':
     app.run_server()
