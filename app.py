@@ -5,202 +5,318 @@ Created on Fri Jan  8 20:33:42 2021
 @author: Jiwoo Ahn
 """
 
-import pandas as pd
+# Import relevant libraries
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output 
-from datetime import timedelta
-from datetime import date as dtdate
+from dash.dependencies import Input, Output , State
+import plotly.express as px
 
-# Import relevant libraries
 import pandas as pd
-import numpy as np
-from scipy.optimize import curve_fit
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+from bs4 import BeautifulSoup
+import time
+import requests
+from requests import get
+import urllib.parse
 
 # Initiate the app
-external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
+external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
-app.title = 'AusCovidDash'
+app.title = 'Property map'
 
-colors = {
-    'background': '#000000',
-    'text': '#5d76a9',
-    'label': '#f5b112'
-}
-
-# Pull data from John Hopkins University and organise into dataframe 
-df = pd.read_csv('https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv')
-
-# Curve fitting Global COVID-19 Cases
-global max_date
-max_date = dtdate.today() - timedelta(days=7)
-
-def logistic(t, a, b, c, d):
-    return c + (d - c)/(1 + a * np.exp(- b * t))
-
-def exponential(t, a, b, c):
-    return a * np.exp(b * t) + c
-    
-def doubling(t):
-    return (1+np.log(2)/2)**t
-
-def plotCases(dataframe, column, state, start_date, curvefit, forecast):
-
-    #fig = go.Figure()
-    fig = make_subplots(rows=1,cols=2,subplot_titles=('Total Cases','New Cases'))
-    fig.update_layout(template='ggplot2')
-    fig.update_layout(autosize=True,margin={'t':30})
-    #fig.update_layout(title='Australia Covid-19 Dashboard',title_font_size=30,title_x=0.5)     
-    fig.update_layout(legend={'title':'Legend','bordercolor':'black','borderwidth':1})
-    fig.update_layout(legend_title_font=dict(family="Verdana",size=16,color=colors['text']))
-    
-    fig.update_layout(
-        font=dict(
-            family="Verdana",
-            size=12,
-            color=colors['text']
-        ))
-
-    # PSM_ColorMap = [(0,0,0),
-    #             (27/256,38/256,100/256),
-    #             (245/256,130/256,100/256),
-    #             (134/256,200/256,230/256),
-    #             (210/256,210/256,185/256),
-    #             (74/256,93/256,206/256),
-    #             (249/256,180/256,161/256),
-    #             (16/256,23/256,60/256),
-    #             (194/256,50/256,13/256),
-    #             (37/256,136/256,181/256),
-    #             (144/256,144/256,93/256)]
+class property():
+    def __init__(self, state, suburb, property_type, beds, imax):
+        self.state = state
+        self.suburb = suburb
+        self.property_type = property_type
+        self.beds = beds
+        self.imax = imax
         
-    co = dataframe[dataframe[column] == state].iloc[:,4:].T.sum(axis = 1)
-    co = pd.DataFrame(co)
-    co.columns = ['Cases']
-    co['date'] = co.index
-    co['date'] = pd.to_datetime(co['date'])  
-    mask = (co['date'] >= start_date)
-    co = co.loc[mask]
-    co['Cases'] = co['Cases'] - co['Cases'][0]
+    def latlong(self,address):
+        url = 'https://nominatim.openstreetmap.org/search/' + urllib.parse.quote(address) +'?format=json'
+        response = requests.get(url).json()
+        if len(response):
+            lat,long = float(response[0]["lat"]), float(response[0]["lon"])
+        else:
+            lat,long = 'NA','NA'
+        return lat, long
     
-    y = np.array(co['Cases'])
-    x = np.arange(y.size)
-    date = co['date']
-    
-    x2 = np.arange(y.size+forecast)
-    x3 = np.arange(y.size+forecast+100)
-    
-    date2 = pd.date_range(date[0],freq='1d',periods=len(date)+forecast)
-    
-    fig.add_trace(go.Scatter(x=date,y=y,mode='markers',name='Total Cases',marker_color='rgba(27,38,100,.8)'),row=1,col=1)
+    def Scraper(self, page):
+        # Lists for appending scraped data for later exporting
+        ids = []
+        urls = []
+        addresses = []
+        prices= []
+        prices_date = []
+        last_prices = []
+        last_prices_date = []
+        rents = []
+        rents_date = []
+        bedrooms = []
+        bathrooms = []
+        carparks = []
+        landsizes = []
+        buildingsizes = []
+        agents = []
+        lats = []
+        longs = []
+        
+        # house.speakingsame.com url 
+        headers = {'user-agent': ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5)'
+                              'AppleWebKit/537.36 (KHTML, like Gecko)'
+                              'Chrome/45.0.2454.101 Safari/537.36'),
+                              'referer': 'http://house.speakingsame.com/'}
+        
+        url = f'http://house.speakingsame.com/p.php?q={self.suburb.replace(" ","+")}&p={page}&s=1&st=&type={self.property_type}&count=300&region={self.suburb.replace(" ","+")}&lat=0&lng=0&sta={self.state}&htype=&agent=0&minprice=0&maxprice=0&minbed={self.beds}&maxbed={self.beds}&minland=0&maxland=0'
+        print(url)
+        
+        time.sleep(3)
+        response = get(url, headers=headers)
 
-    # Logistic regression -----------------------------------------------------------------------
-    lpopt, lpcov = curve_fit(logistic, x, y, maxfev=10000)
-    #lerror = np.sqrt(np.diag(lpcov))
-    # for logistic curve at half maximum, slope = growth rate/2. so doubling time = ln(2) / (growth rate/2)
-    ldoubletime = np.log(2)/(lpopt[1]/2)
-    ## standard error
-    #ldoubletimeerror = 1.96 * ldoubletime * np.abs(lerror[1]/lpopt[1])
-    
-    # calculate R^2
-    residuals = y - logistic(x, *lpopt)
-    ss_res = np.sum(residuals**2)
-    ss_tot = np.sum((y - np.mean(y))**2)
-    logisticr2 = 1 - (ss_res / ss_tot)  
-    
-    if logisticr2 >= 0 and logisticr2 <= 1:
-        fig.add_trace(go.Scatter(x=date2,y=logistic(x2, *lpopt), mode='lines', name="Logistic (r2={0}) Td={1}d".format(round(logisticr2,2),round(ldoubletime,1)),line_color='rgba(245,130,100,.8)',line_shape='spline',line_dash='dash'),row=1,col=1)
-    # -----------------------------------------------------------------------
-    
-    
-    # Exponential regression--------------------------------------------------------------------
-    epopt, epcov = curve_fit(exponential, x, y, bounds=([0.99,0,-0.001],[1.01,0.9,0.001]), maxfev=10000)
-    #eerror = np.sqrt(np.diag(epcov))
-    
-    # for exponential curve, slope = growth rate. so doubling time = ln(2) / growth rate
-    edoubletime = np.log(2)/epopt[1]
-    ## standard error
-    #edoubletimeerror = 1.96 * edoubletime * np.abs(eerror[1]/epopt[1])
-    
-    # calculate R^2
-    residuals = y - exponential(x, *epopt)
-    ss_res = np.sum(residuals**2)
-    ss_tot = np.sum((y - np.mean(y))**2)
-    expr2 = 1 - (ss_res / ss_tot)
-    
-    if expr2 >= 0 and expr2 <= 1:
-        fig.add_trace(go.Scatter(x=date2,y=exponential(x2, *epopt), mode='lines', name="Exponential (r2={0}) Td={1}d".format(round(expr2,2),round(edoubletime,1)),line_color='rgba(134,200,230,.8)',line_shape='spline',line_dash='dash'),row=1,col=1)
-    # --------------------------------------------------------------------
+        # parse html page from reponse to text using bs4 library
+        html_soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # find all classes called 'addr', which contains the address and property url
+        # Then loop through these classes and extract info into lists for later exporting
+        addr_containers = html_soup.find_all('span', {'class' : 'addr'})
+        for addr in addr_containers:
+            children = addr.findChildren("a" , recursive=False)
+            url_temp = children[0].attrs['href']
+            urls.append('http://house.speakingsame.com/' + url_temp)
+            addresses.append(addr.text)
+            ids.append(url_temp.split('&')[2][3:])
+            
+            address = f'{addr.text}, {self.suburb}, {self.state}, Australia'
+            address_ = address
+            print(address)
+            idx = address.find('/')
+            if idx >= 0:
+                address_ = address[idx+1:]            
+            lat, long = self.latlong(address_)
+            lats.append(lat)
+            longs.append(long)
+                        
+        for listing_id in ids:
+            price = ''
+            price_date = ''
+            last_price = ''
+            last_price_date = ''
+            rent = ''
+            rent_date = ''
+            bedroom = ''
+            bathroom = ''
+            carpark = ''
+            landsize = ''
+            buildingsize = ''
+            agent = ''
+            
+            table = html_soup.find('table', id='r'+listing_id)
+            rows = table.find_all('td')[4:]
+            for row in rows:
+                rtext = row.text.split()
+                if len(rtext) > 1:
+                    if rtext[0] == 'Sold' and rtext[4].isnumeric():
+                        try:
+                            price = float(rtext[1].replace('$','').replace(',',''))
+                        except:
+                            price = 'NA'
+                        price_date = rtext[3] + ' ' + rtext[4]
+                    if rtext[0] == 'Last' and rtext[1] == 'Sold':
+                        last_price = rtext[2]
+                        last_price_date = rtext[4] + ' ' + rtext[5]
+                    if rtext[0] == 'Rent':
+                        rent = rtext[1]
+                        rent_date = rtext[3] + ' ' + rtext[4]
+                    if rtext[0] == f'{self.property_type}:':
+                        if len(rtext) > 1:
+                            bedroom = rtext[1]
+                        if len(rtext) > 2:
+                            bathroom = rtext[2]
+                        if len(rtext) > 3:
+                            carpark = rtext[3]
+                    if rtext[0] == 'Land' and rtext[1] == 'size:':
+                        try:
+                            landsize = float(rtext[2].replace(',',''))
+                        except:
+                            landsize = 'NA'
+                        if len(row.find_all('b')) > 1 and rtext[5] == 'Building' and rtext[6] == 'size:':
+                            buildingsize = rtext[7]
+                    if rtext[0] == 'Agent:':
+                        agent = row.text.split(':')[1]
+            
+            if self.property_type == 'House':
+                if landsize == "":
+                    landsize = 'NA'
+                                
+            try:
+                bathroom = float(bathroom)
+            except:
+                bathroom = 'NA'
+                
+            prices.append(price)
+            prices_date.append(price_date)
+            last_prices.append(last_price)
+            last_prices_date.append(last_price_date)
+            rents.append(rent)
+            rents_date.append(rent_date)
+            bedrooms.append(bedroom)
+            bathrooms.append(bathroom)
+            carparks.append(carpark)
+            landsizes.append(landsize)
+            buildingsizes.append(buildingsize)
+            agents.append(agent)
+            
+                
+        df = pd.DataFrame({#'Property Id': ids,
+                            #'Website URL': urls,
+                            'Address': addresses,
+                            'Sold': prices,
+                            'Sold Date': prices_date,
+                            'Selling Agent': agents,
+                            'Last Sold': last_prices,
+                            'Last Sold Date': last_prices_date,
+                            'Bedrooms': bedrooms,
+                            'Bathrooms': bathrooms,
+                            'Carparks': carparks,
+                            'Land Size': landsizes,
+                        'Building Size': buildingsizes,
+                        'Lattitude' : lats,
+                        'Longitude' : longs})
+        return df
 
-    # Calculations for new cases
-    delta = np.diff(co['Cases'])
-    fig.add_trace(go.Scatter(x=y[1:],y=delta,mode='lines',name='New Daily Cases',line_color='rgba(210,210,185,.8)'),row=1,col=2)
+    def Database(self):
+        df = self.Scraper(0)
+        for i in range(1,self.imax):
+            df_i = self.Scraper(i)
+            df = df.append(df_i)
+        
+        return df
     
-    dbl_cases = 2**(x3/2)
-    dbl_delta = 0.5*np.log(2)*np.exp((np.log(2)*x3)/2)
-    fig.add_trace(go.Scatter(x=dbl_cases,y=dbl_delta,mode='lines',name='2 Day Doubling Time',line = {'color':'black','dash':'dash'}),row=1,col=2)
+def plot(State, suburb, property_type, beds, imax):
+    # webscraping function inputs, manipulated url link (same as applying filter on website)
+
+    df = download(State, suburb, property_type, beds, imax)
     
-    fig.update_xaxes(showline=True, linewidth=1, linecolor='black', mirror=True)
-    fig.update_yaxes(showline=True, linewidth=1, linecolor='black', mirror=True)
+    px.set_mapbox_access_token("pk.eyJ1Ijoiaml3b29haG4iLCJhIjoiY2wwNDE5bHR1MGRhZTNlcGRmcTY3OW9ibCJ9.8zwqW0ddcP_H8YsRwHlGhg")
     
-    fig.update_xaxes(title_text='Date',fixedrange=True,row=1,col=1)
-    fig.update_yaxes(title_text='Total confirmed cases since {0}'.format(start_date),fixedrange=True,row=1,col=1)
-    
-    fig.update_xaxes(title_text='Total confirmed cases since {0}'.format(start_date),range=[0,np.log10(max(y)+100)],type="log",fixedrange=True,row=1,col=2)
-    fig.update_yaxes(title_text='New daily cases',type="log",range=[0,np.log10(max(delta)+100)],fixedrange=True,row=1,col=2)
-    
+    if property_type == 'House':
+        fig = px.scatter_mapbox(df, lat='Lattitude', lon='Longitude', color='Sold', size='Land Size',
+                                hover_name='Address',
+                                hover_data=['Sold Date','Bathrooms'],
+                                color_continuous_scale=px.colors.sequential.Plasma, size_max=15, zoom=12)
+    else:
+        fig = px.scatter_mapbox(df, lat='Lattitude', lon='Longitude', color='Sold', size='Bathrooms',
+                                hover_name='Address',
+                                hover_data=['Sold Date', 'Land Size'],
+                                color_continuous_scale=px.colors.sequential.Plasma, size_max=15, zoom=10)
     return fig
+
+def download(State, suburb, property_type, beds, imax):
+    # webscraping function inputs, manipulated url link (same as applying filter on website)
+
+    property_object = property(State.lower(),suburb,property_type,beds, imax)
     
-aus_states = ['Queensland','New South Wales','Victoria','Western Australia','South Australia', 'Tasmania', 'Australian Capital Territory']
+    df = property_object.Database()
+    
+    df = df[df['Sold'] != "NA"]
+    df = df[df['Land Size'] != "NA"]
+    df = df[df['Bathrooms'] != "NA"]
+    df = df[df['Lattitude'] != "NA"]
+    df = df[df['Longitude'] != "NA"]
+    
+    return df
+
+def plotInitial():
+    # webscraping function inputs, manipulated url link (same as applying filter on website)
+    
+    df = {'Sold': [1269000], 'Land Size' : [683], 'Lattitude' : [-27.5269629], 'Longitude' : [153.0597635]}
+    px.set_mapbox_access_token("pk.eyJ1Ijoiaml3b29haG4iLCJhIjoiY2wwNDE5bHR1MGRhZTNlcGRmcTY3OW9ibCJ9.8zwqW0ddcP_H8YsRwHlGhg")
+    
+    fig = px.scatter_mapbox(df, lat='Lattitude', lon='Longitude', color='Sold', size='Land Size',
+                            color_continuous_scale=px.colors.sequential.Plasma, size_max=15, zoom=10)
+
+    return fig
 
 
+# DASH APP CONFIGURATION
+aus_states = ['QLD','NSW','VIC','WA','SA', 'TAS', 'ACT']
+props = ['House','Townhouse','Unit']
+numb = [10,20,30,40,50,60,70,80,90,100]
 
-app.layout = html.Div([
-    html.H1(children='Australia Covid-19 Dashboard',
-            style={'textAlign': 'center','font-family':'Verdana','color': colors['text'],'padding-top': 20}),
-    html.P(children='''Graph settings''',
-           style={'textAlign': 'center','font-size':24,'font-family':'Verdana','color': colors['text'],'padding-bottom': 10}),
-    html.Div([html.Label(["State",dcc.Dropdown(id='state-select', options=[{'label': i, 'value': i} for i in aus_states],
-                       value='Queensland', style={'width': '250px', 'display':'inline-block', 'margin-left':'10px','vertical-align':'middle'})])],
-             style={'vertical-align':'middle','margin-top':'10px','font-size':10,'font-family':'Verdana','textAlign':'center','color':colors['text']}),
-    html.Div([
-        html.Label(["Start Date",dcc.DatePickerSingle(id='my-date-picker-single',
-        min_date_allowed=dtdate(2020, 1, 22),
-        max_date_allowed=(max_date),
-        initial_visible_month=dtdate(2021, 1, 1),
-        date=dtdate(2021, 1, 1),style={'display':'inline-block', 'margin-left':'10px'})])],style={'vertical-align':'middle','margin-top':'10px','font-size':10,'font-family':'Verdana','textAlign':'center','color':colors['text']}),
-    dcc.Graph('dashboard', figure={"layout" : {"height":600}},config={'displayModeBar': False}),
-    html.Div(dcc.Markdown('''
-        The total cases chart presents all COVID-19 cases in each state since the specified start date, as a function of time. Logistic and exponential regression indicates potential trajectories of growth.
-                          
-        The new cases chart presents daily increase in COVID-19 cases vs. the total confirmed cases to date. When plotted in this way, exponential growth is represented as a straight line that slopes upwards. 
-                          
-                          
-        _Created by : Jiwoo Ahn_
+styledict = {'display':'inline-block','vertical-align':'left', 'margin-top':'10px','margin-left':'20px','font-size':10,'font-family':'Verdana','textAlign':'center'}
+
+# Dropdown and input fields, saved as variables
+state = dcc.Dropdown(id='state-state', options=[{'label': i, 'value': i} for i in aus_states], value='QLD', style={'width': '60px', 'display':'inline-block', 'margin-left':'5px','vertical-align':'middle'})
+
+suburb = dcc.Input(id='suburb-state', type='text', value='Holland Park', style={'width': '150px', 'display':'inline-block', 'margin-left':'5px','vertical-align':'left', 'textAlign' : 'center'})
+
+property_type = dcc.Dropdown(id='property_type-state', options=[{'label': i, 'value': i} for i in props], value='House', style={'width': '80px', 'display':'inline-block', 'margin-left':'5px','vertical-align':'middle'})
+
+beds = dcc.Input(id='beds-state', type='number', value=4, min=1, max=6, style={'width': '60px', 'display':'inline-block', 'margin-left':'5px','vertical-align':'left', 'textAlign':'center',})
+
+numb = dcc.Dropdown(id='numb-state', options=[{'label': i, 'value': i} for i in numb], value=20, style={'width': '80px', 'display':'inline-block', 'margin-left':'5px','vertical-align':'middle','textAlign':'center',})
+
+# App HTML layout
+app.layout = html.Div([    
+    html.Div([html.Img(src='https://raw.githubusercontent.com/j-ahn/PropertyMap/main/favicon.png',style={'display':'inline-block', 'width': '1.5%', 'height': '1.5%', 'margin-left': '25px'}),
+              html.H1(children='Australian Property Price Map',
+            style={'display':'inline-block','textAlign': 'left','margin-left': '25px', 'font-family':'Verdana', 'font-size': 30,'vertical-align':'middle'})],
+             style={'margin-top': '25px'}),
+
+    html.Br(style={'height':'10px'}),
+    
+    html.Div([html.Label(["State:",state])],
+         style=styledict),
+    
+    html.Div([html.Label(["Suburb:",suburb])],
+         style=styledict),
+    
+    html.Div([html.Label(["Property Type:",property_type])],
+         style=styledict),
         
-        Data provided by Johns Hopkins University (updated daily around 00:00 UTC / 20:00 ET)
+    html.Div([html.Label(["Bedrooms:",beds])],
+         style=styledict),
+    
+    html.Div([html.Label(["Number of properties:",numb])],
+         style=styledict),
         
-        [Github Repo](https://github.com/j-ahn/AusCovidDash)
-        
-        '''), style = {'font-size':10,'font-family':'Verdana','textAlign':'center','color':colors['text']}),
-    html.Div(children=('Last updated : {0}'.format(dtdate.today().strftime('%d-%B-%Y'))),
-             style = {'font-size':10,'font-family':'Verdana','textAlign':'center','color':colors['text']})
-    ])
+    html.Div([html.Button('Scrape', id='update_button', n_clicks=0)], style=styledict),
+    
+    dcc.Graph('dashboard', style={"height":'75vh'}, config={'displayModeBar': True}),
+    
+    # dcc.Loading(
+    #     id="loading",
+    #     children=[html.Div([dcc.Graph('dashboard', style={"height":'75vh'}, config={'displayModeBar': True})])],
+    #     type="circle"
+    #     ),
+    
+        html.Div(dcc.Markdown('''This tool web-scrapes propery sale data and presents them spatially. The colours represents the sale price, while the radius of the bubble represents the land size or bathrooms (houses vs. townhouses & units).
+       
+    Created by : Jiwoo Ahn
+    
+    [Github Repo](https://github.com/j-ahn/propertymap)
+    
+    '''), style = {'font-size':10,'font-family':'Verdana','textAlign':'center'})
+])
 
 @app.callback(
     Output('dashboard', 'figure'),
-    [Input('state-select', 'value')],
-    [Input('my-date-picker-single','date')]
+    Input('update_button', 'n_clicks'),
+    State('state-state', 'value'),
+    State('suburb-state', 'value'),
+    State('property_type-state', 'value'),
+    State('beds-state', 'value'),
+    State('numb-state', 'value'),
 )
-def update_graph(value,date_value):
-    global max_date
-    max_date = dtdate.today() - timedelta(days=7)
-    # Pull data from John Hopkins University and organise into dataframe 
-    df = pd.read_csv('https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv')
-    return plotCases(df, 'Province/State', value, date_value, True, 3)
+
+def update_graph(n_clicks, state, suburb, property_type, beds, numb):
+    return px.scatter(x=[1, 2, 3], y=[4, 1, 2])
+
+    # if n_clicks == 0:
+    #     return plotInitial()
+    # else:
+    #     return plot(state,suburb,property_type,beds, int(numb*0.1))
 
 if __name__ == '__main__':
     app.run_server()
