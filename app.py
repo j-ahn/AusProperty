@@ -195,7 +195,6 @@ class property_scraper():
         for i in range(1,self.imax):
             df_i = self.Scraper(i)
             df = df.append(df_i)
-        
         return df
     
 def plot(State, suburb, property_type, beds, imax):
@@ -219,28 +218,22 @@ def plot(State, suburb, property_type, beds, imax):
 
 def download(State, suburb, property_type, beds, imax):
     # webscraping function inputs, manipulated url link (same as applying filter on website)
-
     property_object = property_scraper(State.lower(),suburb,property_type,beds, imax)
-    
     df = property_object.Database()
-    
     df = df[df['Sold'] != "NA"]
     df = df[df['Land Size'] != "NA"]
     df = df[df['Bathrooms'] != "NA"]
     df = df[df['Lattitude'] != "NA"]
-    df = df[df['Longitude'] != "NA"]
-    
+    df = df[df['Longitude'] != "NA"]    
     return df
 
 def plotInitial():
     # webscraping function inputs, manipulated url link (same as applying filter on website)
-    
     df = {'Sold': [1269000], 'Land Size' : [683], 'Lattitude' : [-27.5269629], 'Longitude' : [153.0597635]}
     px.set_mapbox_access_token("pk.eyJ1Ijoiaml3b29haG4iLCJhIjoiY2wwNDE5bHR1MGRhZTNlcGRmcTY3OW9ibCJ9.8zwqW0ddcP_H8YsRwHlGhg")
     
     fig = px.scatter_mapbox(df, lat='Lattitude', lon='Longitude', color='Sold', size='Land Size',
                             color_continuous_scale=px.colors.sequential.Plasma, size_max=15, zoom=10)
-
     return fig
     
 # DASH APP CONFIGURATION
@@ -261,6 +254,7 @@ beds = dcc.Input(id='beds-state', type='number', value=4, min=1, max=6, style={'
 
 numb = dcc.Dropdown(id='numb-state', options=[{'label': i, 'value': i} for i in numb], value=10, style={'width': '80px', 'display':'inline-block', 'margin-left':'5px','vertical-align':'middle','textAlign':'center',})
 
+# Initialise figure
 fig = plotInitial()
 
 # App HTML layout
@@ -291,7 +285,7 @@ app.layout = html.Div([
     
     dcc.Loading(
         id="loading",
-        children=[html.Div([dcc.Graph('dashboard', figure=fig, style={"height":'75vh'}, config={'displayModeBar': True})])],
+        children=[html.Div([dcc.Graph('dashboard', figure=fig, style={"height":'70vh'}, config={'displayModeBar': True})])],
         type="circle"
         ),
     
@@ -316,10 +310,9 @@ app.layout = html.Div([
 )
                               
 def update_graph(n_clicks, state, suburb, property_type, beds, numb):
-    fig = plotInitial()
-    # if n_clicks > 0:
-    #     print(n_clicks)
-    #     fig = plot(state,suburb,property_type,beds, int(numb*0.1))
+    if n_clicks > 0:
+        print(n_clicks)
+        fig = plot(state,suburb,property_type,beds, int(numb*0.1))
     return fig
 
 if __name__ == '__main__':
