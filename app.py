@@ -5,16 +5,13 @@ Created on Fri Jan  8 20:33:42 2021
 @author: Jiwoo Ahn
 """
 
-import pandas as pd
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output 
-from datetime import timedelta
-from datetime import date as dtdate
+from dash.dependencies import Input, Output
 
 # Import relevant libraries
-import pandas as pd5
+import pandas as pd
 import plotly.express as px
 
 # Initiate the app
@@ -29,11 +26,12 @@ colors = {
     'label': '#f5b112'
 }
 
+fig = px.scatter(x=[1, 2, 3], y=[4, 1, 2])
 
 app.layout = html.Div([
-    html.H1(children='Australia Covid-19 Dashboard', style={'textAlign': 'center','font-family':'Verdana','color': colors['text'],'padding-top': 20}),
+    html.H1(children='Australia Property Map', style={'textAlign': 'center','font-family':'Verdana','color': colors['text'],'padding-top': 20}),
     html.Button('Scrape', id='update_button', n_clicks=0),
-    dcc.Graph('dashboard', figure={"layout" : {"height":600}},config={'displayModeBar': False})
+    dcc.Graph('dashboard', figure=fig,config={'displayModeBar': False})
     ])
 
 @app.callback(
