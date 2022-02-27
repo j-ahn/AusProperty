@@ -11,6 +11,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output , State
 import plotly.express as px
+import plotly.graph_objects as go
 
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -255,13 +256,13 @@ property_type = dcc.Dropdown(id='property_type-state', options=[{'label': i, 'va
 
 beds = dcc.Input(id='beds-state', type='number', value=4, min=1, max=6, style={'width': '60px', 'display':'inline-block', 'margin-left':'5px','vertical-align':'left', 'textAlign':'center',})
 
-numb = dcc.Dropdown(id='numb-state', options=[{'label': i, 'value': i} for i in numb], value=20, style={'width': '80px', 'display':'inline-block', 'margin-left':'5px','vertical-align':'middle','textAlign':'center',})
+numb = dcc.Dropdown(id='numb-state', options=[{'label': i, 'value': i} for i in numb], value=10, style={'width': '80px', 'display':'inline-block', 'margin-left':'5px','vertical-align':'middle','textAlign':'center',})
 
 fig = plotInitial()
 
 # App HTML layout
 app.layout = html.Div([    
-    html.Div([html.Img(src='https://raw.githubusercontent.com/j-ahn/PropertyMap/main/favicon.png',style={'display':'inline-block', 'width': '1.5%', 'height': '1.5%', 'margin-left': '25px'}),
+    html.Div([html.Img(src='https://raw.githubusercontent.com/j-ahn/misc/main/favicon.png',style={'display':'inline-block', 'width': '1.5%', 'height': '1.5%', 'margin-left': '25px'}),
               html.H1(children='Australian Property Price Map',
             style={'display':'inline-block','textAlign': 'left','margin-left': '25px', 'font-family':'Verdana', 'font-size': 30,'vertical-align':'middle'})],
              style={'margin-top': '25px'}),
@@ -287,7 +288,7 @@ app.layout = html.Div([
     
     dcc.Loading(
         id="loading",
-        children=[html.Div([dcc.Graph('dashboard', style={"height":'75vh'}, config={'displayModeBar': True})])],
+        children=[html.Div([dcc.Graph('dashboard', figure=fig, style={"height":'75vh'}, config={'displayModeBar': True})])],
         type="circle"
         ),
     
@@ -299,7 +300,8 @@ app.layout = html.Div([
     
     '''), style = {'font-size':10,'font-family':'Verdana','textAlign':'center'})
 ])
-
+           
+# App callback
 @app.callback(
     Output('dashboard', 'figure'),
     Input('update_button', 'n_clicks'),
@@ -309,13 +311,13 @@ app.layout = html.Div([
     State('beds-state', 'value'),
     State('numb-state', 'value'),
 )
-
+                              
 def update_graph(n_clicks, state, suburb, property_type, beds, numb):
-    if n_clicks == 0:
-        fig = plotInitial()
-    else:
+    if n_clicks > 0:
+        print(n_clicks)
         fig = plot(state,suburb,property_type,beds, int(numb*0.1))
     return fig
+                             
 
 if __name__ == '__main__':
     app.run_server()
