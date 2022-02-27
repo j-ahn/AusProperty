@@ -5,8 +5,8 @@ dash==1.18.1
 plotly==4.14.1
 pandas==1.0.5
 dash_core_components==1.14.1
-bs4==4.10.0
-requests==2.27.1
+bs4
+requests
 
 Flask==1.1.2
 Flask-Compress==1.8.0
