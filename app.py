@@ -313,9 +313,10 @@ app.layout = html.Div([
 )
                               
 def update_graph(n_clicks, state, suburb, property_type, beds, numb):
-    if n_clicks > 0:
-        print(n_clicks)
-        fig = plot(state,suburb,property_type,beds, int(numb*0.1))
+    fig = plotInitial()
+    # if n_clicks > 0:
+    #     print(n_clicks)
+    #     fig = plot(state,suburb,property_type,beds, int(numb*0.1))
     return fig
                              
 
